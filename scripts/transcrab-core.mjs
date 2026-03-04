@@ -28,11 +28,16 @@ export async function htmlToMarkdown(html, baseUrl) {
 
   const langHints = collectCodeLangHints(dom.window.document);
 
+  const directContentHtml = pickDirectContentHtml(dom.window.document);
   const reader = new Readability(dom.window.document);
   const article = reader.parse();
 
   const title = article?.title || dom.window.document.title || '';
-  const contentHtml = article?.content || dom.window.document.body?.innerHTML || '';
+  const contentHtml =
+    directContentHtml ||
+    article?.content ||
+    dom.window.document.body?.innerHTML ||
+    '';
 
   const contentDom = new JSDOM(contentHtml, { url: baseUrl });
   applyCodeLangHints(contentDom.window.document, langHints);
@@ -101,8 +106,45 @@ export async function htmlToMarkdown(html, baseUrl) {
 
   const defaultFenceLang = pickDefaultFenceLang(fenceLangCounts);
   if (defaultFenceLang) md = applyDefaultLangToFences(md, defaultFenceLang);
+  md = normalizeLinkedImageBlocks(md);
 
   return { title: title.trim(), markdown: md.trim() + '\n' };
+}
+
+function pickDirectContentHtml(doc) {
+  const selectors = [
+    'article .available-content .body.markup', // Substack article body
+    'article .available-content .body',
+    'article .body.markup',
+  ];
+
+  for (const sel of selectors) {
+    const node = doc.querySelector(sel);
+    if (!node) continue;
+
+    const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+    // Avoid grabbing tiny fragments (e.g. bylines or promo blocks).
+    if (text.length < 300) continue;
+
+    return node.innerHTML || '';
+  }
+
+  return null;
+}
+
+function normalizeLinkedImageBlocks(md) {
+  let out = String(md || '');
+
+  // Some sites (notably Substack) wrap clickable images in block elements inside <a>.
+  // Turndown can emit a multiline form that renders as stray '[' and URL text:
+  // [\n\n![](img)\n\n](link)
+  // Normalize to a single-line markdown link-image.
+  out = out.replace(
+    /\[\s*\n+\s*(!\[[^\]]*\]\([^\n)]+\))\s*\n+\s*\]\(([^\n)]+)\)/g,
+    '[$1]($2)'
+  );
+
+  return out;
 }
 
 function normalizeLangHint(lang) {
