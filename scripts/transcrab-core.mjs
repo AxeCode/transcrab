@@ -106,6 +106,7 @@ export async function htmlToMarkdown(html, baseUrl) {
 
   const defaultFenceLang = pickDefaultFenceLang(fenceLangCounts);
   if (defaultFenceLang) md = applyDefaultLangToFences(md, defaultFenceLang);
+  md = normalizeLinkedImageBlocks(md);
 
   return { title: title.trim(), markdown: md.trim() + '\n' };
 }
@@ -129,6 +130,21 @@ function pickDirectContentHtml(doc) {
   }
 
   return null;
+}
+
+function normalizeLinkedImageBlocks(md) {
+  let out = String(md || '');
+
+  // Some sites (notably Substack) wrap clickable images in block elements inside <a>.
+  // Turndown can emit a multiline form that renders as stray '[' and URL text:
+  // [\n\n![](img)\n\n](link)
+  // Normalize to a single-line markdown link-image.
+  out = out.replace(
+    /\[\s*\n+\s*(!\[[^\]]*\]\([^\n)]+\))\s*\n+\s*\]\(([^\n)]+)\)/g,
+    '[$1]($2)'
+  );
+
+  return out;
 }
 
 function normalizeLangHint(lang) {

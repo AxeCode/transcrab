@@ -51,6 +51,26 @@ test('transcrab-core: preserves headings from direct article body when available
   assert.match(markdown, /^### \*\*Layer 1: Compare Multiple Options\*\*/m);
 });
 
+test('transcrab-core: normalizes multiline linked images into markdown link-image', async () => {
+  const html = `<!doctype html>
+  <html><head><meta charset="utf-8" /><title>Img Link</title></head>
+  <body>
+    <article>
+      <div class="available-content">
+        <div class="body markup">
+          <p>Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text Intro text.</p>
+          <a href="https://example.com/full.png"><div><picture><img src="https://example.com/thumb.png" /></picture></div></a>
+          <p>Tail text.</p>
+        </div>
+      </div>
+    </article>
+  </body></html>`;
+
+  const { markdown } = await htmlToMarkdown(html, 'https://example.com/p');
+  assert.match(markdown, /\[!\[]\(https:\/\/example\.com\/thumb\.png\)\]\(https:\/\/example\.com\/full\.png\)/);
+  assert.doesNotMatch(markdown, /\[\s*\n\s*!\[]\(/m);
+});
+
 test('transcrab-core: buildTranslatePrompt contains contract and content', () => {
   const md = '# T\n\nHello';
   const prompt = buildTranslatePrompt(md, 'zh');
